@@ -226,10 +226,31 @@ const initializeEvents = (client, sessionId) => {
         })
         .on('requestfailed', request => {
           const failure = request.failure()
-          if (failure) {
-            logger.error({ sessionId, url: request.url() }, `Page request failed: ${failure.errorText}`)
+          const url = request.url()
+          const errorText = failure ? failure.errorText : 'unknown'
+          
+          // Filter out non-critical WhatsApp request failures that are expected during normal operation
+          // These don't affect session functionality and clutter logs
+          
+          const isMediaCdnRequest = url.includes('cdn.whatsapp.net/mms/md-msg-hist')
+          const isStaticResource = url.includes('static.whatsapp.net/rsrc.php')
+          const isFlowsCache = url.includes('flows.whatsapp.net/flows/cache_management')
+          const isAbortedError = errorText === 'net::ERR_ABORTED'
+          const isBlockedByResponse = errorText === 'net::ERR_BLOCKED_BY_RESPONSE'
+          
+          // These are non-critical errors expected during WhatsApp Web sync/initialization
+          const isNonCriticalError = 
+            (isMediaCdnRequest && isAbortedError) ||
+            (isStaticResource && isAbortedError) ||
+            (isFlowsCache && isBlockedByResponse)
+          
+          if (isNonCriticalError) {
+            // Log at debug level instead of error for expected failures
+            logger.debug({ sessionId, url, errorText }, 'Non-critical WhatsApp request failed (expected behavior)')
+          } else if (failure) {
+            logger.error({ sessionId, url }, `Page request failed: ${errorText}`)
           } else {
-            logger.error({ sessionId, url: request.url() }, 'Page request failed but no failure reason provided')
+            logger.error({ sessionId, url }, 'Page request failed but no failure reason provided')
           }
         })
         .on('pageerror', ({ message }) => logger.error({ sessionId, message }, 'Page error occurred'))
