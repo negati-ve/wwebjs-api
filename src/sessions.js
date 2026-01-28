@@ -2,7 +2,7 @@ const { Client, LocalAuth } = require('whatsapp-web.js')
 const fs = require('fs')
 const path = require('path')
 const sessions = new Map()
-const { baseWebhookURL, sessionFolderPath, maxAttachmentSize, setMessagesAsSeen, webVersion, webVersionCacheType, recoverSessions, chromeBin, headless, releaseBrowserLock } = require('./config')
+const { baseWebhookURL, sessionFolderPath, maxAttachmentSize, setMessagesAsSeen, allowedMessageChatIds, listenChatId, webVersion, webVersionCacheType, recoverSessions, chromeBin, headless, releaseBrowserLock } = require('./config')
 const { triggerWebhook, waitForNestedObject, isEventEnabled, sendMessageSeenStatus, sleep, patchWWebLibrary } = require('./utils')
 const { logger } = require('./logger')
 const { initWebSocketServer, terminateWebSocketServer, triggerWebSocket } = require('./websocket')
@@ -343,7 +343,34 @@ const initializeEvents = (client, sessionId) => {
   }
 
   client.on('message', async (message) => {
-    if (isEventEnabled('message')) {
+    // Chat ID detection: If LISTEN_CHAT_ID is set and message matches, log the chat ID
+    if (listenChatId && message.body === listenChatId) {
+      const chatType = message.from.includes('@g.us') ? 'Group' : 'Contact'
+      console.log('\n' + '='.repeat(80))
+      console.log('🔍 CHAT ID DETECTED!')
+      console.log('='.repeat(80))
+      console.log(`📱 Type: ${chatType}`)
+      console.log(`🆔 Chat ID: ${message.from}`)
+      console.log(`👤 From: ${message._data.notifyName || 'Unknown'}`)
+      console.log(`📅 Timestamp: ${new Date().toISOString()}`)
+      console.log('='.repeat(80))
+      console.log(`💡 Add this to ALLOWED_MESSAGE_CHAT_IDS: ${message.from}`)
+      console.log('='.repeat(80) + '\n')
+      
+      // Also log to logger
+      logger.info({ 
+        sessionId, 
+        chatId: message.from, 
+        chatType, 
+        notifyName: message._data.notifyName 
+      }, 'Chat ID detected via LISTEN_CHAT_ID trigger')
+    }
+    
+    // Check if message webhook should be filtered by chat ID
+    const shouldTriggerWebhook = allowedMessageChatIds.length === 0 || 
+                                  allowedMessageChatIds.includes(message.from)
+    
+    if (isEventEnabled('message') && shouldTriggerWebhook) {
       triggerWebhook(sessionWebhook, sessionId, 'message', { message })
       triggerWebSocket(sessionId, 'message', { message })
       if (message.hasMedia && message._data?.size < maxAttachmentSize) {

@@ -97,6 +97,10 @@ docker compose pull && docker compose up
 
 5. Disable any of the callbacks
 
+6. Filter message webhooks by specific chat/group IDs
+
+7. Easy chat/group ID discovery with trigger strings
+
 ## Run Locally
 
 1. Clone the repository:
@@ -156,6 +160,43 @@ This can be overridden by setting the `*_WEBHOOK_URL` environment variable, wher
 For example, if you have the sessionId defined as `DEMO`, the environment variable must be `DEMO_WEBHOOK_URL`.
 
 By setting the `DISABLED_CALLBACKS` environment variable you can specify what events you are **not** willing to receive on your webhook.
+
+By setting the `ALLOWED_MESSAGE_CHAT_IDS` environment variable you can filter message webhooks to only specific chat or group IDs. This is useful when you only want to receive notifications from certain contacts or groups. If not set or empty, all messages will trigger webhooks.
+
+Example:
+```bash
+# Only receive message webhooks from these chat/group IDs
+ALLOWED_MESSAGE_CHAT_IDS=1234567890@c.us|9876543210@c.us|120363123456789012@g.us
+```
+
+### Discovering Chat/Group IDs
+
+To easily discover chat or group IDs, use the `LISTEN_CHAT_ID` feature:
+
+1. Set a unique trigger string in your `.env` file:
+```bash
+LISTEN_CHAT_ID=!getchatid
+```
+
+2. Restart your server
+
+3. Send the trigger string (`!getchatid`) from any WhatsApp chat or group
+
+4. Check your console - you'll see a formatted output with the chat ID:
+```
+================================================================================
+🔍 CHAT ID DETECTED!
+================================================================================
+📱 Type: Contact
+🆔 Chat ID: 1234567890@c.us
+👤 From: John Doe
+📅 Timestamp: 2026-01-28T12:34:56.789Z
+================================================================================
+💡 Add this to ALLOWED_MESSAGE_CHAT_IDS: 1234567890@c.us
+================================================================================
+```
+
+5. Copy the Chat ID and add it to `ALLOWED_MESSAGE_CHAT_IDS` if needed
 
 By setting the `ENABLE_WEBHOOK` environment to `FALSE` you can disable webhook dispatching. This will help you if you want to switch to websocket method(see below).
 
